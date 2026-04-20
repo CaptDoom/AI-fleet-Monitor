@@ -1,11 +1,29 @@
+/// <reference types="vite/client" />
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, collection, onSnapshot, query, where } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { initializeFirestore, doc, getDocFromServer, collection, onSnapshot, query, where } from 'firebase/firestore';
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || (typeof window !== 'undefined' ? (window as any).FIREBASE_CONFIG?.apiKey : null) || "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || ""
+};
 
-const app = initializeApp(firebaseConfig);
+// Fallback to json if environment variables are missing
+import initialConfig from '../../firebase-applet-config.json';
+const finalConfig = {
+  ...initialConfig,
+  ...Object.fromEntries(Object.entries(firebaseConfig).filter(([_, v]) => v))
+};
+
+const app = initializeApp(finalConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, finalConfig.firestoreDatabaseId || "(default)");
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -51,11 +69,9 @@ async function testConnection() {
     console.log("Firestore connection verified");
   } catch (error) {
     if (error instanceof Error && error.message.includes('permission-denied')) {
-      console.warn("Firestore connection check failed: Permission Denied (this is expected if document doesn't exist but connection was attempted)");
+      console.warn("Firestore connection check failed: Permission Denied (expected)");
     } else if (error instanceof Error && error.message.includes('the client is offline')) {
       console.error("Please check your Firebase configuration: Client is offline");
     }
   }
 }
-
-testConnection();
