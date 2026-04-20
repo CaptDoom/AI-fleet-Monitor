@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "linkedEmails": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "email"]
+    },
+    "ApiKey": {
+      "title": "API Key",
+      "description": "Encrypted credentials for AI providers",
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string" },
+        "encryptedKey": { "type": "string" },
+        "lastValidated": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Valid", "Invalid", "Pending"] },
+        "ownerEmail": { "type": "string" }
+      },
+      "required": ["provider", "encryptedKey", "ownerEmail"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "Organizational unit for budgeting",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "budgetTokens": { "type": "integer" },
+        "usedTokens": { "type": "integer" },
+        "members": { "type": "array", "items": { "type": "string" } },
+        "ownerEmail": { "type": "string" }
+      },
+      "required": ["name", "budgetTokens", "ownerEmail"]
+    },
+    "ModelQuota": {
+      "title": "Model Quota",
+      "description": "Real-time tracking of provider quotas",
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "useCase": { "type": "string" },
+        "totalQuota": { "type": "integer" },
+        "usedQuota": { "type": "integer" },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "ownerEmail": { "type": "string" },
+        "costPer1k": { "type": "number" }
+      },
+      "required": ["provider", "model", "totalQuota", "usedQuota", "ownerEmail"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/api_keys/{keyId}": {
+      "schema": "ApiKey",
+      "description": "Stored encrypted keys"
+    },
+    "/teams/{teamId}": {
+      "schema": "Team",
+      "description": "Teams and budgets"
+    },
+    "/quotas/{quotaId}": {
+      "schema": "ModelQuota",
+      "description": "Provider quota tracking"
+    }
+  }
+}

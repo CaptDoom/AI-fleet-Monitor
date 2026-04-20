@@ -1,0 +1,6 @@
+{
+  "name": "AI Fleet Manager",
+  "description": "Centralized control plane for managing multiple AI providers with real-time quota tracking, automatic failover, and cost optimization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

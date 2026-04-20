@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(email) { return isVerified() && request.auth.token.email == email; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    
+    // User Helpers
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isLinkedEmail(email) {
+      return email in getUserData().linkedEmails;
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId);
+      allow create: if isSignedIn() && (request.auth.uid == userId) && 
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.linkedEmails is list &&
+        request.resource.data.linkedEmails.size() <= 10;
+      
+      allow update: if isSignedIn() && (request.auth.uid == userId) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.linkedEmails is list &&
+        request.resource.data.linkedEmails.size() <= 10;
+    }
+
+    // --- Quotas Collection ---
+    match /quotas/{quotaId} {
+      allow get: if isVerified() && (isOwner(resource.data.ownerEmail) || isLinkedEmail(resource.data.ownerEmail));
+      allow list: if isVerified() && (resource.data.ownerEmail == request.auth.token.email); 
+      // Note: For 'list', we only allow primary email ownership to avoid massive 'get' costs in rules.
+      // Fetching linked data should be done via specific document 'get' or separate queries if needed,
+      // but for this app we'll allow primary email listing.
+      
+      allow create: if isVerified() && isOwner(request.resource.data.ownerEmail) &&
+        isValidId(quotaId) &&
+        request.resource.data.keys().hasAll(['provider', 'model', 'totalQuota', 'usedQuota', 'ownerEmail']) &&
+        request.resource.data.totalQuota is int &&
+        request.resource.data.usedQuota is int;
+
+      allow update: if isVerified() && isOwner(resource.data.ownerEmail) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedQuota', 'status', 'lastUpdated']) &&
+        request.resource.data.usedQuota is int;
+    }
+
+    // --- API Keys Collection ---
+    match /api_keys/{keyId} {
+      allow get: if isVerified() && (isOwner(resource.data.ownerEmail) || isLinkedEmail(resource.data.ownerEmail));
+      allow list: if isVerified() && (resource.data.ownerEmail == request.auth.token.email);
+      
+      allow create: if isVerified() && isOwner(request.resource.data.ownerEmail) &&
+        request.resource.data.keys().hasAll(['provider', 'encryptedKey', 'ownerEmail']) &&
+        request.resource.data.encryptedKey is string &&
+        request.resource.data.encryptedKey.size() <= 2048;
+
+      allow update: if isVerified() && isOwner(resource.data.ownerEmail) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['encryptedKey', 'status', 'lastValidated']);
+    }
+
+    // --- Teams Collection ---
+    match /teams/{teamId} {
+      allow get, list: if isVerified() && (isOwner(resource.data.ownerEmail) || isLinkedEmail(resource.data.ownerEmail));
+      
+      allow create: if isVerified() && isOwner(request.resource.data.ownerEmail) &&
+        request.resource.data.keys().hasAll(['name', 'budgetTokens', 'ownerEmail']) &&
+        request.resource.data.budgetTokens is int;
+
+      allow update: if isVerified() && isOwner(resource.data.ownerEmail) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['budgetTokens', 'usedTokens', 'members']);
+      
+      allow delete: if isVerified() && isOwner(resource.data.ownerEmail);
+    }
+  }
+}
